@@ -119,6 +119,18 @@ func TestCreatePullRequestPageIsSeparateAndHasDiffControls(t *testing.T) {
 	}
 }
 
+func TestGlobalBreadcrumbLinksFeaturePages(t *testing.T) {
+	w := httptest.NewRecorder()
+	pageStart(w, "Create", "Create", "", "org", "repo", "Pull requests", "Create")
+	body := w.Body.String()
+	if !strings.Contains(body, `href="/repos/org/repo/pulls"`) {
+		t.Fatal("pull requests breadcrumb is not clickable")
+	}
+	if strings.Contains(body, `href="/repos/org/repo/pulls/new"`) {
+		t.Fatal("active create breadcrumb should not link to itself")
+	}
+}
+
 func TestDiffSummaryUsesFileCountsAndColoredLines(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"additions":0,"deletions":0,"files":[{"filename":"x.go","additions":4,"deletions":2,"patch":"-old\n+new"}]}`))

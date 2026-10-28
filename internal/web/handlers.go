@@ -351,6 +351,14 @@ func pageStart(w http.ResponseWriter, eyebrow, title, subtitle string, crumbs ..
 			fmt.Fprintf(w, `<span>/</span><a class="hover:text-white" href="/repos/%s/%s">%s</a>`, crumbs[0], crumbs[1], template.HTMLEscapeString(label))
 			continue
 		}
+		if i == 2 && label == "Pull requests" {
+			fmt.Fprintf(w, `<span>/</span><a class="hover:text-white" href="/repos/%s/%s/pulls">%s</a>`, crumbs[0], crumbs[1], template.HTMLEscapeString(label))
+			continue
+		}
+		if i == 2 && label == "Actions" {
+			fmt.Fprintf(w, `<span>/</span><a class="hover:text-white" href="/repos/%s/%s/actions">%s</a>`, crumbs[0], crumbs[1], template.HTMLEscapeString(label))
+			continue
+		}
 		fmt.Fprintf(w, `<span>/</span><span>%s</span>`, template.HTMLEscapeString(label))
 	}
 	fmt.Fprintf(w, `</nav><p class="text-sm font-medium uppercase tracking-widest text-indigo-400">%s</p><h1 class="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">%s</h1><p class="mt-3 max-w-2xl text-slate-400">%s</p><div class="mt-8">`, template.HTMLEscapeString(eyebrow), template.HTMLEscapeString(title), template.HTMLEscapeString(subtitle))
