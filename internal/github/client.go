@@ -58,7 +58,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 		}
 		return fmt.Errorf("github: %s: %s", res.Status, e.Message)
 	}
-	if out != nil && len(data) > 0 {
+	if out != nil && len(bytes.TrimSpace(data)) > 0 {
 		return json.Unmarshal(data, out)
 	}
 	return nil

@@ -41,6 +41,17 @@ func TestCreatePullRequestPayload(t *testing.T) {
 		t.Fatalf("pr=%#v err=%v", pr, err)
 	}
 }
+
+func TestEmptyJSONResponseIsAccepted(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(" \n\t")) }))
+	defer s.Close()
+	var out struct {
+		Runs []WorkflowRun `json:"workflow_runs"`
+	}
+	if err := NewClient(nil, s.URL, "secret").request(context.Background(), http.MethodGet, "/actions/runs", nil, &out); err != nil {
+		t.Fatalf("empty response should not be a json error: %v", err)
+	}
+}
 func TestInvalidMutationRejected(t *testing.T) {
 	if err := NewClient(nil, "http://example", "x").CreateReview(context.Background(), "a", "b", 1, "BAD"); err == nil {
 		t.Fatal("expected validation")
