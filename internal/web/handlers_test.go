@@ -53,3 +53,16 @@ func TestHandlersBasic(t *testing.T) {
 		t.Fatalf("pulls page: %d %s", rw2.Code, rw2.Body.String())
 	}
 }
+
+func TestActionsShowsGitHubError(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Actions access denied"}`))
+	}))
+	defer s.Close()
+	rw := httptest.NewRecorder()
+	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/actions", nil))
+	if rw.Code != http.StatusInternalServerError || !strings.Contains(rw.Body.String(), "Actions access denied") {
+		t.Fatalf("expected actionable actions error, got %d %s", rw.Code, rw.Body.String())
+	}
+}

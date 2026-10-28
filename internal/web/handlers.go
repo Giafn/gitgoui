@@ -225,7 +225,11 @@ func (h *Handler) reviewOrMerge(w http.ResponseWriter, r *http.Request, owner, r
 }
 
 func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo string) {
-	runs, _ := h.client.ListWorkflowRuns(r.Context(), owner, repo)
+	runs, err := h.client.ListWorkflowRuns(r.Context(), owner, repo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	pageStart(w, "GitHub Actions", repo, fmt.Sprintf("Workflow runs in %s/%s.", owner, repo))
 	fmt.Fprint(w, `<div class="space-y-3">`)
