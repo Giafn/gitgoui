@@ -4,8 +4,12 @@ type Repository struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
 	FullName string `json:"full_name"`
-	Owner    string `json:"owner"`
+	Owner    User   `json:"owner"`
 	Private  bool   `json:"private"`
+}
+
+type User struct {
+	Login string `json:"login"`
 }
 
 type PullRequest struct {

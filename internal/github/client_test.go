@@ -32,3 +32,14 @@ func TestInvalidMutationRejected(t *testing.T) {
 		t.Fatal("expected validation")
 	}
 }
+
+func TestListRepositoriesDecodesOwnerObject(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"id":1,"name":"repo","full_name":"acme/repo","owner":{"login":"acme"}}]`))
+	}))
+	defer s.Close()
+	repos, err := NewClient(nil, s.URL, "secret").ListRepositories(context.Background())
+	if err != nil || len(repos) != 1 || repos[0].Owner.Login != "acme" {
+		t.Fatalf("repos=%#v err=%v", repos, err)
+	}
+}
