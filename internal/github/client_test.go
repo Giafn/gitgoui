@@ -27,6 +27,20 @@ func TestListRepositoriesUsesAuthAndPagination(t *testing.T) {
 		t.Fatalf("%v %#v", err, v)
 	}
 }
+
+func TestCreatePullRequestPayload(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/repos/acme/app/pulls" {
+			t.Fatalf("request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"number":12,"title":"Add feature"}`))
+	}))
+	defer s.Close()
+	pr, err := NewClient(nil, s.URL, "secret").CreatePullRequest(context.Background(), "acme", "app", PullRequestInput{Title: "Add feature", Head: "feature", Base: "main"})
+	if err != nil || pr.Number != 12 {
+		t.Fatalf("pr=%#v err=%v", pr, err)
+	}
+}
 func TestInvalidMutationRejected(t *testing.T) {
 	if err := NewClient(nil, "http://example", "x").CreateReview(context.Background(), "a", "b", 1, "BAD"); err == nil {
 		t.Fatal("expected validation")

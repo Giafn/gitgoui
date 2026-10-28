@@ -21,6 +21,11 @@ type PullRequest struct {
 	Mergeable *bool  `json:"mergeable"`
 }
 
+type Branch struct {
+	Name string `json:"name"`
+}
+type PullRequestInput struct{ Title, Body, Head, Base string }
+
 type Workflow struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`

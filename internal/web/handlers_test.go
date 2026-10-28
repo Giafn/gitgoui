@@ -15,6 +15,14 @@ func TestHandlersBasic(t *testing.T) {
 			w.Write([]byte(`[{"id":1,"name":"repo","full_name":"org/repo","owner":{"login":"org"}}]`))
 			return
 		}
+		if r.URL.Path == "/repos/org/repo/branches" {
+			w.Write([]byte(`[{"name":"main"},{"name":"feature"}]`))
+			return
+		}
+		if r.URL.Path == "/repos/org/repo/collaborators" {
+			w.Write([]byte(`[{"login":"reviewer"}]`))
+			return
+		}
 		if r.URL.Path == "/repos/org/repo/pulls" {
 			w.Write([]byte(`[{"number":7,"title":"Fix"}]`))
 			return
@@ -32,6 +40,11 @@ func TestHandlersBasic(t *testing.T) {
 	}
 	if !strings.Contains(rw.Body.String(), "tailwindcss") || !strings.Contains(rw.Body.String(), "bg-slate-950") {
 		t.Fatal("repository page is missing modern Tailwind layout")
+	}
+	rwRepo := httptest.NewRecorder()
+	h.ServeHTTP(rwRepo, httptest.NewRequest(http.MethodGet, "/repos/org/repo", nil))
+	if !strings.Contains(rwRepo.Body.String(), "Pull requests") || !strings.Contains(rwRepo.Body.String(), "Actions") {
+		t.Fatal("repository tabs missing")
 	}
 	rw2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodGet, "/repos/org/repo/pulls", nil)

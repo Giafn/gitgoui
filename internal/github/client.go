@@ -100,6 +100,24 @@ func (c *Client) GetPullRequest(ctx context.Context, owner, repo string, n int) 
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/pulls/%d", url.PathEscape(owner), url.PathEscape(repo), n), &v)
 	return v, err
 }
+func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]Branch, error) {
+	var v []Branch
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/branches?per_page=100", owner, repo), &v)
+	return v, err
+}
+func (c *Client) ListCollaborators(ctx context.Context, owner, repo string) ([]User, error) {
+	var v []User
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/collaborators?affiliation=all&per_page=100", owner, repo), &v)
+	return v, err
+}
+func (c *Client) CreatePullRequest(ctx context.Context, owner, repo string, in PullRequestInput) (PullRequest, error) {
+	var v PullRequest
+	err := c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/pulls", owner, repo), in, &v)
+	return v, err
+}
+func (c *Client) RequestReviewers(ctx context.Context, owner, repo string, n int, reviewers []string) error {
+	return c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", owner, repo, n), map[string][]string{"reviewers": reviewers}, nil)
+}
 func (c *Client) CreateReview(ctx context.Context, owner, repo string, n int, event string) error {
 	if event != "APPROVE" && event != "REQUEST_CHANGES" {
 		return fmt.Errorf("invalid review event")

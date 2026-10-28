@@ -37,7 +37,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case len(segs) == 0:
 		h.repos(w, r)
+	case len(segs) == 2:
+		h.repo(w, r, segs[0], segs[1])
 	case len(segs) == 3 && segs[2] == "pulls":
+		if r.Method == http.MethodPost {
+			h.createPullRequest(w, r, segs[0], segs[1], token)
+			return
+		}
 		h.pulls(w, r, segs[0], segs[1])
 	case len(segs) == 4 && segs[2] == "pulls":
 		n, _ := strconv.Atoi(segs[3])
@@ -113,7 +119,7 @@ func (h *Handler) repos(w http.ResponseWriter, r *http.Request) {
 		if repo.Private {
 			visibility = "private"
 		}
-		fmt.Fprintf(w, `<a class="group rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl transition hover:-translate-y-0.5 hover:border-indigo-500" href="/repos/%s/%s/pulls"><div class="mb-4 flex items-center justify-between"><span class="text-xs font-medium uppercase tracking-wider text-indigo-300">%s</span><span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">%s</span></div><h2 class="font-semibold text-white group-hover:text-indigo-300">%s</h2><p class="mt-2 text-sm text-slate-400">%s · Open pull requests and review activity</p></a>`, repo.Owner.Login, repo.Name, template.HTMLEscapeString(repo.Owner.Login), visibility, template.HTMLEscapeString(repo.Name), template.HTMLEscapeString(repo.FullName))
+		fmt.Fprintf(w, `<a class="group rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl transition hover:-translate-y-0.5 hover:border-indigo-500" href="/repos/%s/%s"><div class="mb-4 flex items-center justify-between"><span class="text-xs font-medium uppercase tracking-wider text-indigo-300">%s</span><span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">%s</span></div><h2 class="font-semibold text-white group-hover:text-indigo-300">%s</h2><p class="mt-2 text-sm text-slate-400">%s · Open pull requests and review activity</p></a>`, repo.Owner.Login, repo.Name, template.HTMLEscapeString(repo.Owner.Login), visibility, template.HTMLEscapeString(repo.Name), template.HTMLEscapeString(repo.FullName))
 	}
 	pageEnd(w)
 }
@@ -126,12 +132,63 @@ func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo stri
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	pageStart(w, "Pull requests", repo, fmt.Sprintf("Review activity in %s/%s.", owner, repo))
+	csrf := ensureCSRF(w, r)
+	branches, branchErr := h.client.ListBranches(r.Context(), owner, repo)
+	collaborators, collaboratorErr := h.client.ListCollaborators(r.Context(), owner, repo)
+	fmt.Fprintf(w, `<div class="mb-8 rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-5"><h2 class="text-lg font-semibold text-white">Create pull request</h2><p class="mt-1 text-sm text-slate-400">Compare branches and request a review in one step.</p></div><form class="grid gap-4 md:grid-cols-2" method="post" action="/repos/%s/%s/pulls"><input type="hidden" name="csrf" value="%s"><label class="text-sm text-slate-300">From branch<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="head">`, owner, repo, csrf)
+	if branchErr == nil {
+		for _, b := range branches {
+			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
+		}
+	}
+	fmt.Fprint(w, `</select></label><label class="text-sm text-slate-300">To branch<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="base">`)
+	if branchErr == nil {
+		for _, b := range branches {
+			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
+		}
+	}
+	fmt.Fprint(w, `</select></label><label class="text-sm text-slate-300 md:col-span-2">Title<input required class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="title"></label><label class="text-sm text-slate-300 md:col-span-2">Description<textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="body"></textarea></label><label class="text-sm text-slate-300">Request review from<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="reviewer"><option value="">No reviewer</option>`)
+	if collaboratorErr == nil {
+		for _, user := range collaborators {
+			fmt.Fprintf(w, `<option value="%s">@%s</option>`, template.HTMLEscapeString(user.Login), template.HTMLEscapeString(user.Login))
+		}
+	}
+	fmt.Fprint(w, `</select></label><div class="flex items-end"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Create pull request</button></div></form></div>`)
 	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, pr := range prs {
 		fmt.Fprintf(w, `<a class="block rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-indigo-500" href="/repos/%s/%s/pulls/%d"><div class="flex items-center gap-3"><span class="text-sm text-slate-500">#%d</span><h2 class="font-medium text-white">%s</h2><span class="ml-auto rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-300">open</span></div></a>`, owner, repo, pr.Number, pr.Number, template.HTMLEscapeString(pr.Title))
 	}
 	fmt.Fprint(w, `</div>`)
 	pageEnd(w)
+}
+
+func (h *Handler) repo(w http.ResponseWriter, r *http.Request, owner, repo string) {
+	pageStart(w, "Repository", repo, fmt.Sprintf("Choose a workspace for %s/%s.", owner, repo))
+	fmt.Fprintf(w, `<div class="grid gap-4 sm:grid-cols-2"><a class="rounded-2xl border border-indigo-500/50 bg-indigo-500/10 p-6 hover:bg-indigo-500/20" href="/repos/%s/%s/pulls"><h2 class="text-lg font-semibold text-white">Pull requests</h2><p class="mt-2 text-sm text-slate-400">Create, review, approve, and merge pull requests.</p></a><a class="rounded-2xl border border-slate-800 bg-slate-900 p-6 hover:border-indigo-500" href="/repos/%s/%s/actions"><h2 class="text-lg font-semibold text-white">Actions</h2><p class="mt-2 text-sm text-slate-400">Monitor workflow runs and manage deployments.</p></a></div>`, owner, repo, owner, repo)
+	pageEnd(w)
+}
+
+func (h *Handler) createPullRequest(w http.ResponseWriter, r *http.Request, owner, repo, csrf string) {
+	if !validateCSRF(r, r.FormValue("csrf")) {
+		http.Error(w, "invalid csrf", http.StatusForbidden)
+		return
+	}
+	if strings.TrimSpace(r.FormValue("title")) == "" || r.FormValue("head") == "" || r.FormValue("base") == "" {
+		http.Error(w, "title and branches are required", http.StatusBadRequest)
+		return
+	}
+	pr, err := h.client.CreatePullRequest(r.Context(), owner, repo, github.PullRequestInput{Title: r.FormValue("title"), Body: r.FormValue("body"), Head: r.FormValue("head"), Base: r.FormValue("base")})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	if reviewer := r.FormValue("reviewer"); reviewer != "" {
+		if err := h.client.RequestReviewers(r.Context(), owner, repo, pr.Number, []string{reviewer}); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	}
+	http.Redirect(w, r, fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr.Number), http.StatusSeeOther)
 }
 
 func (h *Handler) pullDetail(w http.ResponseWriter, r *http.Request, owner, repo string, n int) {
