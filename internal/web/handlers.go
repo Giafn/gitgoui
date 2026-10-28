@@ -197,9 +197,20 @@ func (h *Handler) compare(w http.ResponseWriter, r *http.Request, owner, repo st
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Fprintf(w, `<div class="rounded-xl border border-slate-700 bg-slate-950 p-4"><p class="text-sm text-slate-300">%d additions · %d deletions · %d files</p>`, additions, deletions, len(files))
+	fmt.Fprintf(w, `<div class="rounded-xl border border-slate-700 bg-slate-950 p-4"><p class="text-sm text-slate-300"><span class="text-emerald-300">+%d additions</span> · <span class="text-rose-300">-%d deletions</span> · %d files</p>`, additions, deletions, len(files))
 	for _, f := range files {
-		fmt.Fprintf(w, `<details class="mt-3 rounded-lg border border-slate-800 p-3"><summary class="cursor-pointer text-sm text-white">%s <span class="text-xs text-slate-500">%s</span></summary><pre class="mt-3 overflow-x-auto text-xs text-slate-300">%s</pre></details>`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status), template.HTMLEscapeString(f.Patch))
+		fmt.Fprintf(w, `<details class="mt-3 rounded-lg border border-slate-800 p-3"><summary class="cursor-pointer text-sm text-white">%s <span class="text-xs text-slate-500">%s</span></summary><pre class="mt-3 overflow-x-auto text-xs">`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status))
+		for _, line := range strings.Split(f.Patch, "\n") {
+			color := "text-slate-300"
+			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+				color = "bg-emerald-500/10 text-emerald-300"
+			}
+			if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+				color = "bg-rose-500/10 text-rose-300"
+			}
+			fmt.Fprintf(w, `<span class="block px-2 %s">%s</span>`, color, template.HTMLEscapeString(line))
+		}
+		fmt.Fprint(w, `</pre></details>`)
 	}
 	fmt.Fprint(w, `</div>`)
 }

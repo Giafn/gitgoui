@@ -116,9 +116,11 @@ func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]Branch
 }
 func (c *Client) CompareBranches(ctx context.Context, owner, repo, base, head string) (int, int, int, []DiffFile, error) {
 	var v struct {
-		AheadBy, BehindBy    int
-		Additions, Deletions int
-		Files                []DiffFile `json:"files"`
+		AheadBy   int        `json:"ahead_by"`
+		BehindBy  int        `json:"behind_by"`
+		Additions int        `json:"additions"`
+		Deletions int        `json:"deletions"`
+		Files     []DiffFile `json:"files"`
 	}
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/compare/%s...%s", owner, repo, url.PathEscape(base), url.PathEscape(head)), &v)
 	return v.AheadBy, v.Additions, v.Deletions, v.Files, err
