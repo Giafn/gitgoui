@@ -176,13 +176,13 @@ func (h *Handler) newPullRequest(w http.ResponseWriter, r *http.Request, owner, 
 		}
 	}
 	fmt.Fprint(w, `</select></label>`)
-	fmt.Fprint(w, `<div class="md:col-span-2"><button class="rounded-lg border border-indigo-500 px-4 py-2 text-sm text-indigo-300" type="button" onclick="checkDiff()">Check diff</button><div id="diff-preview" class="mt-4"></div></div><label class="text-sm text-slate-300 md:col-span-2">Title<input required class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="title"></label><label class="text-sm text-slate-300 md:col-span-2">Description<textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="body"></textarea></label><label class="text-sm text-slate-300">Request reviewer<select id="reviewer" class="mt-2" name="reviewer"><option value="">No reviewer</option>`)
+	fmt.Fprint(w, `<div class="md:col-span-2"><button class="rounded-lg border border-indigo-500 px-4 py-2 text-sm text-indigo-300" type="button" onclick="checkDiff()">Check diff</button></div><label class="text-sm text-slate-300 md:col-span-2">Title<input required class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="title"></label><label class="text-sm text-slate-300 md:col-span-2">Description<textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="body"></textarea></label><label class="text-sm text-slate-300">Request reviewer<select id="reviewer" class="mt-2" name="reviewer"><option value="">No reviewer</option>`)
 	if collaboratorErr == nil {
 		for _, u := range collaborators {
 			fmt.Fprintf(w, `<option value="%s">@%s</option>`, template.HTMLEscapeString(u.Login), template.HTMLEscapeString(u.Login))
 		}
 	}
-	fmt.Fprintf(w, `</select></label><div class="flex items-end"><button class="rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white" type="submit">Create pull request</button></div></form><script>new TomSelect('#from-branch',{placeholder:'Search source branch...'});new TomSelect('#to-branch',{placeholder:'Search target branch...'});new TomSelect('#reviewer',{placeholder:'Search reviewer...'});async function checkDiff(){const h=document.querySelector('[name=head]').value,b=document.querySelector('[name=base]').value;const e=document.querySelector('#diff-preview');if(!h||!b||h===b){e.innerHTML='<p class="text-amber-300">Choose two different branches.</p>';return}e.innerHTML=await fetch('/repos/%s/%s/compare?base='+encodeURIComponent(b)+'&head='+encodeURIComponent(h)).then(r=>r.text());}</script>`, owner, repo)
+	fmt.Fprintf(w, `</select></label><div class="flex items-end"><button class="rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white" type="submit">Create pull request</button></div></form><div id="diff-preview"></div><script>new TomSelect('#from-branch',{placeholder:'Search source branch...'});new TomSelect('#to-branch',{placeholder:'Search target branch...'});new TomSelect('#reviewer',{placeholder:'Search reviewer...'});async function checkDiff(){const h=document.querySelector('[name=head]').value,b=document.querySelector('[name=base]').value;const e=document.querySelector('#diff-preview');if(!h||!b||h===b){e.innerHTML='<div class="mt-6 rounded-2xl border border-amber-500/30 bg-slate-900 p-4"><p class="text-amber-300">Choose two different branches.</p></div>';return}e.innerHTML=await fetch('/repos/%s/%s/compare?base='+encodeURIComponent(b)+'&head='+encodeURIComponent(h)).then(r=>r.text());}</script>`, owner, repo)
 	pageEnd(w)
 }
 
@@ -197,9 +197,15 @@ func (h *Handler) compare(w http.ResponseWriter, r *http.Request, owner, repo st
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Fprintf(w, `<div class="rounded-xl border border-slate-700 bg-slate-950 p-4"><p class="text-sm text-slate-300"><span class="text-emerald-300">+%d additions</span> · <span class="text-rose-300">-%d deletions</span> · %d files</p>`, additions, deletions, len(files))
+	if additions == 0 && deletions == 0 {
+		for _, f := range files {
+			additions += f.Additions
+			deletions += f.Deletions
+		}
+	}
+	fmt.Fprintf(w, `<div class="mt-6 overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 p-4"><p class="text-sm text-slate-300"><span class="text-emerald-300">+%d additions</span> · <span class="text-rose-300">-%d deletions</span> · %d files</p>`, additions, deletions, len(files))
 	for _, f := range files {
-		fmt.Fprintf(w, `<details class="mt-3 rounded-lg border border-slate-800 p-3"><summary class="cursor-pointer text-sm text-white">%s <span class="text-xs text-slate-500">%s</span></summary><pre class="mt-3 overflow-x-auto text-xs">`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status))
+		fmt.Fprintf(w, `<details class="mt-3 rounded-lg border border-slate-800 p-3"><summary class="cursor-pointer break-all text-sm text-white">%s <span class="text-xs text-slate-500">%s</span></summary><pre class="mt-3 max-w-full overflow-x-auto whitespace-pre-wrap break-words text-xs">`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status))
 		for _, line := range strings.Split(f.Patch, "\n") {
 			color := "text-slate-300"
 			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {

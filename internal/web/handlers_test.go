@@ -118,3 +118,16 @@ func TestCreatePullRequestPageIsSeparateAndHasDiffControls(t *testing.T) {
 		t.Fatalf("create page missing controls: %s", rw.Body.String())
 	}
 }
+
+func TestDiffSummaryUsesFileCountsAndColoredLines(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"additions":0,"deletions":0,"files":[{"filename":"x.go","additions":4,"deletions":2,"patch":"-old\n+new"}]}`))
+	}))
+	defer s.Close()
+	rw := httptest.NewRecorder()
+	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/compare?base=main&head=feature", nil))
+	body := rw.Body.String()
+	if !strings.Contains(body, "+4 additions") || !strings.Contains(body, "-2 deletions") || !strings.Contains(body, "bg-emerald-500/10") || !strings.Contains(body, "bg-rose-500/10") {
+		t.Fatalf("diff rendering incorrect: %s", body)
+	}
+}

@@ -26,8 +26,12 @@ type Branch struct {
 }
 type PullRequestInput struct{ Title, Body, Head, Base string }
 type DiffFile struct {
-	Filename, Status, Patch, HTMLURL string
-	Additions, Deletions             int
+	Filename  string `json:"filename"`
+	Status    string `json:"status"`
+	Patch     string `json:"patch"`
+	HTMLURL   string `json:"html_url"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
 }
 
 type Workflow struct {
