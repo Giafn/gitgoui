@@ -79,3 +79,19 @@ func TestActionsUsesDistinctStatusBadgeColors(t *testing.T) {
 		t.Fatalf("status colors missing: %s", body)
 	}
 }
+
+func TestActionDetailShowsBreadcrumbAndJobGraph(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/jobs") {
+			w.Write([]byte(`{"jobs":[{"id":8,"name":"build","status":"completed","conclusion":"success","steps":[{"number":1,"name":"Test","status":"completed","conclusion":"success"}]}]}`))
+			return
+		}
+		w.Write([]byte(`{"id":7,"name":"CI","status":"completed","conclusion":"success"}`))
+	}))
+	defer s.Close()
+	rw := httptest.NewRecorder()
+	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/actions/runs/7", nil))
+	if !strings.Contains(rw.Body.String(), "Repositories") || !strings.Contains(rw.Body.String(), "build") || !strings.Contains(rw.Body.String(), "Test") {
+		t.Fatalf("detail missing: %s", rw.Body.String())
+	}
+}

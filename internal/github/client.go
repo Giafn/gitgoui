@@ -144,6 +144,18 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string) ([]Wo
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/actions/runs?per_page=100", owner, repo), &v)
 	return v.WorkflowRuns, err
 }
+func (c *Client) GetWorkflowRun(ctx context.Context, owner, repo string, id int64) (WorkflowRun, error) {
+	var v WorkflowRun
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/actions/runs/%d", owner, repo, id), &v)
+	return v, err
+}
+func (c *Client) ListWorkflowJobs(ctx context.Context, owner, repo string, id int64) ([]Job, error) {
+	var v struct {
+		Jobs []Job `json:"jobs"`
+	}
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs?per_page=100", owner, repo, id), &v)
+	return v.Jobs, err
+}
 func (c *Client) DispatchWorkflow(ctx context.Context, owner, repo, workflow, ref string) error {
 	return c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/actions/workflows/%s/dispatches", owner, repo, workflow), map[string]string{"ref": ref}, nil)
 }

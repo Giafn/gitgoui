@@ -40,3 +40,13 @@ type WorkflowRun struct {
 	Conclusion string `json:"conclusion"`
 	HTMLURL    string `json:"html_url"`
 }
+
+type Job struct {
+	ID                       int64 `json:"id"`
+	Name, Status, Conclusion string
+	Steps                    []Step `json:"steps"`
+}
+type Step struct {
+	Name, Status, Conclusion string
+	Number                   int `json:"number"`
+}

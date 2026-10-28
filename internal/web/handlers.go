@@ -70,6 +70,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("/repos/%s/%s/pulls/%d", segs[0], segs[1], n), http.StatusSeeOther)
 	case len(segs) == 3 && segs[2] == "actions":
 		h.actions(w, r, segs[0], segs[1])
+	case len(segs) == 5 && segs[2] == "actions" && segs[3] == "runs":
+		id, err := strconv.ParseInt(segs[4], 10, 64)
+		if err != nil || id <= 0 {
+			http.NotFound(w, r)
+			return
+		}
+		h.actionDetail(w, r, segs[0], segs[1], id)
 	case len(segs) == 6 && segs[2] == "actions" && segs[3] == "workflows" && segs[5] == "dispatch":
 		if r.Method != http.MethodPost || !validateCSRF(r, r.FormValue("csrf")) {
 			http.Error(w, "invalid request", http.StatusForbidden)
@@ -242,11 +249,35 @@ func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo st
 		if run.Status == "completed" && run.Conclusion == "success" {
 			badge = "bg-emerald-500/10 text-emerald-300"
 		}
-		if run.Status == "completed" && run.Conclusion != "success" {
+		if run.Status == "completed" && run.Conclusion == "failure" {
 			badge = "bg-rose-500/10 text-rose-300"
 			label = "completed-failed"
 		}
-		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full px-3 py-1 text-xs %s">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), badge, template.HTMLEscapeString(label))
+		fmt.Fprintf(w, `<a href="/repos/%s/%s/actions/runs/%d" class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5 hover:border-indigo-500"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full px-3 py-1 text-xs %s">%s</span></a>`, owner, repo, run.ID, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), badge, template.HTMLEscapeString(label))
+	}
+	fmt.Fprint(w, `</div>`)
+	pageEnd(w)
+}
+
+func (h *Handler) actionDetail(w http.ResponseWriter, r *http.Request, owner, repo string, id int64) {
+	run, err := h.client.GetWorkflowRun(r.Context(), owner, repo, id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	jobs, err := h.client.ListWorkflowJobs(r.Context(), owner, repo, id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	pageStart(w, "Action run", run.Name, fmt.Sprintf("%s/%s · run #%d", owner, repo, id))
+	fmt.Fprintf(w, `<nav class="mb-6 text-sm text-slate-400"><a class="hover:text-white" href="/">Repositories</a><span class="mx-2">/</span><a class="hover:text-white" href="/repos/%s/%s">%s</a><span class="mx-2">/</span><a class="hover:text-white" href="/repos/%s/%s/actions">Actions</a><span class="mx-2">/</span><span class="text-white">Run #%d</span></nav><div class="space-y-4">`, owner, repo, repo, owner, repo, id)
+	for _, job := range jobs {
+		fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="flex items-center justify-between"><h2 class="font-semibold text-white">%s</h2><span class="text-sm text-emerald-300">%s</span></div><div class="mt-4 border-l border-indigo-500/40 pl-5">`, template.HTMLEscapeString(job.Name), template.HTMLEscapeString(job.Conclusion))
+		for _, step := range job.Steps {
+			fmt.Fprintf(w, `<div class="relative py-2 text-sm text-slate-300"><span class="absolute -left-[25px] mt-1 h-2 w-2 rounded-full bg-emerald-400"></span>%d. %s <span class="ml-2 text-xs text-slate-500">%s</span></div>`, step.Number, template.HTMLEscapeString(step.Name), template.HTMLEscapeString(step.Conclusion))
+		}
+		fmt.Fprint(w, `</div></article>`)
 	}
 	fmt.Fprint(w, `</div>`)
 	pageEnd(w)
