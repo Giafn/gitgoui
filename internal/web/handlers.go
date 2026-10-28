@@ -234,7 +234,17 @@ func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo st
 	pageStart(w, "GitHub Actions", repo, fmt.Sprintf("Workflow runs in %s/%s.", owner, repo))
 	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, run := range runs {
-		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), template.HTMLEscapeString(run.Status))
+		badge := "bg-slate-800 text-slate-300"
+		if run.Status == "in_progress" || run.Status == "queued" {
+			badge = "bg-amber-500/10 text-amber-300"
+		}
+		if run.Status == "completed" && run.Conclusion == "success" {
+			badge = "bg-emerald-500/10 text-emerald-300"
+		}
+		if run.Status == "completed" && run.Conclusion != "success" {
+			badge = "bg-rose-500/10 text-rose-300"
+		}
+		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full px-3 py-1 text-xs %s">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), badge, template.HTMLEscapeString(run.Status))
 	}
 	fmt.Fprint(w, `</div>`)
 	pageEnd(w)
