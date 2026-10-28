@@ -46,6 +46,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.pullDetail(w, r, segs[0], segs[1], n)
+	case len(segs) == 5 && segs[2] == "pulls" && (segs[4] == "review" || segs[4] == "merge"):
+		n, err := strconv.Atoi(segs[3])
+		if err != nil || n <= 0 || r.Method != http.MethodPost || !validateCSRF(r, r.FormValue("csrf")) {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if segs[4] == "merge" {
+			err = h.client.MergePullRequest(r.Context(), segs[0], segs[1], n, r.FormValue("method"))
+		} else {
+			err = h.client.CreateReview(r.Context(), segs[0], segs[1], n, r.FormValue("event"))
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/repos/%s/%s/pulls/%d", segs[0], segs[1], n), http.StatusSeeOther)
 	case len(segs) == 3 && segs[2] == "actions":
 		h.actions(w, r, segs[0], segs[1])
 	case len(segs) == 6 && segs[2] == "actions" && segs[3] == "workflows" && segs[5] == "dispatch":
