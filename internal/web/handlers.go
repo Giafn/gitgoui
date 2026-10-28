@@ -20,6 +20,10 @@ func NewHandler(client *github.Client) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/static/") {
+		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))).ServeHTTP(w, r)
+		return
+	}
 	p := strings.Trim(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	segs := []string{}
 	if p != "" {

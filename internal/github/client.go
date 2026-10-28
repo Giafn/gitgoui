@@ -76,7 +76,7 @@ func (c *Client) ListRepositories(ctx context.Context) ([]Repository, error) {
 			return nil, err
 		}
 		all = append(all, rows...)
-		if len(rows) == 0 {
+		if len(rows) < 100 {
 			break
 		}
 	}
