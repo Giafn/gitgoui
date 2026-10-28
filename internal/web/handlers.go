@@ -138,7 +138,7 @@ func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo stri
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	pageStart(w, "Pull requests", repo, fmt.Sprintf("Review activity in %s/%s.", owner, repo))
+	pageStart(w, "Pull requests", repo, fmt.Sprintf("Review activity in %s/%s.", owner, repo), owner, repo, "Pull requests")
 	csrf := ensureCSRF(w, r)
 	branches, branchErr := h.client.ListBranches(r.Context(), owner, repo)
 	collaborators, collaboratorErr := h.client.ListCollaborators(r.Context(), owner, repo)
@@ -170,7 +170,7 @@ func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo stri
 }
 
 func (h *Handler) repo(w http.ResponseWriter, r *http.Request, owner, repo string) {
-	pageStart(w, "Repository", repo, fmt.Sprintf("Choose a workspace for %s/%s.", owner, repo))
+	pageStart(w, "Repository", repo, fmt.Sprintf("Choose a workspace for %s/%s.", owner, repo), owner, repo)
 	fmt.Fprintf(w, `<div class="grid gap-4 sm:grid-cols-2"><a class="rounded-2xl border border-indigo-500/50 bg-indigo-500/10 p-6 hover:bg-indigo-500/20" href="/repos/%s/%s/pulls"><h2 class="text-lg font-semibold text-white">Pull requests</h2><p class="mt-2 text-sm text-slate-400">Create, review, approve, and merge pull requests.</p></a><a class="rounded-2xl border border-slate-800 bg-slate-900 p-6 hover:border-indigo-500" href="/repos/%s/%s/actions"><h2 class="text-lg font-semibold text-white">Actions</h2><p class="mt-2 text-sm text-slate-400">Monitor workflow runs and manage deployments.</p></a></div>`, owner, repo, owner, repo)
 	pageEnd(w)
 }
@@ -206,7 +206,7 @@ func (h *Handler) pullDetail(w http.ResponseWriter, r *http.Request, owner, repo
 	}
 	csrfToken := ensureCSRF(w, r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	pageStart(w, fmt.Sprintf("Pull request #%d", n), pr.Title, fmt.Sprintf("%s/%s", owner, repo))
+	pageStart(w, fmt.Sprintf("Pull request #%d", n), pr.Title, fmt.Sprintf("%s/%s", owner, repo), owner, repo, "Pull requests", fmt.Sprintf("Pull request #%d", n))
 	fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-6 flex flex-wrap gap-3"><span class="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">%s</span><a class="text-sm text-indigo-300 hover:text-indigo-200" href="%s" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div><div class="flex flex-wrap gap-3"><form method="post" action="/repos/%s/%s/pulls/%d/review"><input type="hidden" name="csrf" value="%s"><button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400" name="event" value="APPROVE">Approve</button><button class="rounded-lg bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-500/25" name="event" value="REQUEST_CHANGES">Request changes</button></form><form method="post" action="/repos/%s/%s/pulls/%d/merge"><input type="hidden" name="csrf" value="%s"><input type="hidden" name="method" value="merge"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Merge pull request</button></form></div></article>`, template.HTMLEscapeString(pr.State), template.HTMLEscapeString(pr.HTMLURL), owner, repo, n, csrfToken, owner, repo, n, csrfToken)
 	pageEnd(w)
 }
@@ -238,7 +238,7 @@ func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo st
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	pageStart(w, "GitHub Actions", repo, fmt.Sprintf("Workflow runs in %s/%s.", owner, repo))
+	pageStart(w, "GitHub Actions", repo, fmt.Sprintf("Workflow runs in %s/%s.", owner, repo), owner, repo, "Actions")
 	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, run := range runs {
 		badge := "bg-slate-800 text-slate-300"
@@ -270,8 +270,8 @@ func (h *Handler) actionDetail(w http.ResponseWriter, r *http.Request, owner, re
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	pageStart(w, "Action run", run.Name, fmt.Sprintf("%s/%s · run #%d", owner, repo, id))
-	fmt.Fprintf(w, `<nav class="mb-6 text-sm text-slate-400"><a class="hover:text-white" href="/">Repositories</a><span class="mx-2">/</span><a class="hover:text-white" href="/repos/%s/%s">%s</a><span class="mx-2">/</span><a class="hover:text-white" href="/repos/%s/%s/actions">Actions</a><span class="mx-2">/</span><span class="text-white">Run #%d</span></nav><div class="space-y-4">`, owner, repo, repo, owner, repo, id)
+	pageStart(w, "Action run", run.Name, fmt.Sprintf("%s/%s · run #%d", owner, repo, id), owner, repo, "Actions", fmt.Sprintf("Run #%d", id))
+	fmt.Fprint(w, `<div class="space-y-4">`)
 	for _, job := range jobs {
 		fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="flex items-center justify-between"><h2 class="font-semibold text-white">%s</h2><span class="text-sm text-emerald-300">%s</span></div><div class="mt-4 border-l border-indigo-500/40 pl-5">`, template.HTMLEscapeString(job.Name), template.HTMLEscapeString(job.Conclusion))
 		for _, step := range job.Steps {
@@ -283,8 +283,25 @@ func (h *Handler) actionDetail(w http.ResponseWriter, r *http.Request, owner, re
 	pageEnd(w)
 }
 
-func pageStart(w http.ResponseWriter, eyebrow, title, subtitle string) {
-	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s · gitui</title><script src="https://cdn.tailwindcss.com"></script></head><body class="min-h-screen bg-slate-950 text-slate-100"><header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5"><a class="text-lg font-bold tracking-tight text-white" href="/">git<span class="text-indigo-400">ui</span></a><nav class="flex gap-4 text-sm text-slate-400"><a class="hover:text-white" href="/">Repositories</a></nav></div></header><main class="mx-auto max-w-6xl px-6 py-12"><p class="text-sm font-medium uppercase tracking-widest text-indigo-400">%s</p><h1 class="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">%s</h1><p class="mt-3 max-w-2xl text-slate-400">%s</p><div class="mt-8">`, template.HTMLEscapeString(title), template.HTMLEscapeString(eyebrow), template.HTMLEscapeString(title), template.HTMLEscapeString(subtitle))
+func pageStart(w http.ResponseWriter, eyebrow, title, subtitle string, crumbs ...string) {
+	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s · gitui</title><script src="https://cdn.tailwindcss.com"></script></head><body class="min-h-screen bg-slate-950 text-slate-100"><header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5"><a class="text-lg font-bold tracking-tight text-white" href="/">git<span class="text-indigo-400">ui</span></a><nav class="flex gap-4 text-sm text-slate-400"><a class="hover:text-white" href="/">Repositories</a></nav></div></header><main class="mx-auto max-w-6xl px-6 py-12"><nav class="mb-8 flex flex-wrap items-center gap-2 text-sm text-slate-500"><a class="hover:text-white" href="/">Repositories</a>`, template.HTMLEscapeString(title))
+	for i := 0; i < len(crumbs); i++ {
+		label := crumbs[i]
+		if i == len(crumbs)-1 {
+			fmt.Fprintf(w, `<span>/</span><span class="text-slate-200">%s</span>`, template.HTMLEscapeString(label))
+			continue
+		}
+		if i == 0 {
+			fmt.Fprintf(w, `<span>/</span><span>%s</span>`, template.HTMLEscapeString(label))
+			continue
+		}
+		if i == 1 {
+			fmt.Fprintf(w, `<span>/</span><a class="hover:text-white" href="/repos/%s/%s">%s</a>`, crumbs[0], crumbs[1], template.HTMLEscapeString(label))
+			continue
+		}
+		fmt.Fprintf(w, `<span>/</span><span>%s</span>`, template.HTMLEscapeString(label))
+	}
+	fmt.Fprintf(w, `</nav><p class="text-sm font-medium uppercase tracking-widest text-indigo-400">%s</p><h1 class="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">%s</h1><p class="mt-3 max-w-2xl text-slate-400">%s</p><div class="mt-8">`, template.HTMLEscapeString(eyebrow), template.HTMLEscapeString(title), template.HTMLEscapeString(subtitle))
 }
 
 func pageEnd(w http.ResponseWriter) {

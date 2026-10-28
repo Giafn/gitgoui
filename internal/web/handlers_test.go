@@ -52,6 +52,9 @@ func TestHandlersBasic(t *testing.T) {
 	if rw2.Code != 200 || !strings.Contains(rw2.Body.String(), "Fix") {
 		t.Fatalf("pulls page: %d %s", rw2.Code, rw2.Body.String())
 	}
+	if !strings.Contains(rw2.Body.String(), "Repositories") || !strings.Contains(rw2.Body.String(), "org/repo") || !strings.Contains(rw2.Body.String(), "Pull requests") {
+		t.Fatal("global breadcrumb missing")
+	}
 }
 
 func TestActionsShowsGitHubError(t *testing.T) {
