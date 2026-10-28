@@ -105,6 +105,15 @@ func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]Branch
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/branches?per_page=100", owner, repo), &v)
 	return v, err
 }
+func (c *Client) CompareBranches(ctx context.Context, owner, repo, base, head string) (int, int, int, []DiffFile, error) {
+	var v struct {
+		AheadBy, BehindBy    int
+		Additions, Deletions int
+		Files                []DiffFile `json:"files"`
+	}
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/compare/%s...%s", owner, repo, url.PathEscape(base), url.PathEscape(head)), &v)
+	return v.AheadBy, v.Additions, v.Deletions, v.Files, err
+}
 func (c *Client) ListCollaborators(ctx context.Context, owner, repo string) ([]User, error) {
 	var v []User
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/collaborators?affiliation=all&per_page=100", owner, repo), &v)

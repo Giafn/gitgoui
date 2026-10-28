@@ -98,3 +98,23 @@ func TestActionDetailShowsBreadcrumbAndJobGraph(t *testing.T) {
 		t.Fatalf("detail missing: %s", rw.Body.String())
 	}
 }
+
+func TestCreatePullRequestPageIsSeparateAndHasDiffControls(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/branches") {
+			w.Write([]byte(`[{"name":"main"},{"name":"feature"}]`))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/collaborators") {
+			w.Write([]byte(`[{"login":"reviewer"}]`))
+			return
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer s.Close()
+	rw := httptest.NewRecorder()
+	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/pulls/new", nil))
+	if !strings.Contains(rw.Body.String(), "Check diff") || !strings.Contains(rw.Body.String(), "tom-select") || !strings.Contains(rw.Body.String(), "Request reviewer") {
+		t.Fatalf("create page missing controls: %s", rw.Body.String())
+	}
+}

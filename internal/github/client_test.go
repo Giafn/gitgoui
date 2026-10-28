@@ -69,6 +69,17 @@ func TestLargeJSONResponseIsNotTruncated(t *testing.T) {
 		t.Fatalf("large response should decode: %v", err)
 	}
 }
+
+func TestCompareBranchesDecodesFiles(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ahead_by":1,"additions":3,"deletions":1,"files":[{"filename":"main.go","status":"modified","patch":"@@ -1 +1 @@"}]}`))
+	}))
+	defer s.Close()
+	_, additions, _, files, err := NewClient(nil, s.URL, "secret").CompareBranches(context.Background(), "org", "repo", "main", "feature")
+	if err != nil || additions != 3 || len(files) != 1 || files[0].Filename != "main.go" {
+		t.Fatalf("files=%#v additions=%d err=%v", files, additions, err)
+	}
+}
 func TestInvalidMutationRejected(t *testing.T) {
 	if err := NewClient(nil, "http://example", "x").CreateReview(context.Background(), "a", "b", 1, "BAD"); err == nil {
 		t.Fatal("expected validation")

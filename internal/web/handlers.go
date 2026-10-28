@@ -45,6 +45,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.pulls(w, r, segs[0], segs[1])
+	case len(segs) == 4 && segs[2] == "pulls" && segs[3] == "new":
+		if r.Method == http.MethodPost {
+			h.createPullRequest(w, r, segs[0], segs[1], token)
+			return
+		}
+		h.newPullRequest(w, r, segs[0], segs[1], token)
+	case len(segs) == 3 && segs[2] == "compare":
+		h.compare(w, r, segs[0], segs[1])
 	case len(segs) == 4 && segs[2] == "pulls":
 		n, _ := strconv.Atoi(segs[3])
 		if r.Method == http.MethodPost {
@@ -139,34 +147,61 @@ func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo stri
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	pageStart(w, "Pull requests", repo, fmt.Sprintf("Review activity in %s/%s.", owner, repo), owner, repo, "Pull requests")
-	csrf := ensureCSRF(w, r)
-	branches, branchErr := h.client.ListBranches(r.Context(), owner, repo)
-	collaborators, collaboratorErr := h.client.ListCollaborators(r.Context(), owner, repo)
-	fmt.Fprintf(w, `<div class="mb-8 rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-5"><h2 class="text-lg font-semibold text-white">Create pull request</h2><p class="mt-1 text-sm text-slate-400">Compare branches and request a review in one step.</p></div><form class="grid gap-4 md:grid-cols-2" method="post" action="/repos/%s/%s/pulls"><input type="hidden" name="csrf" value="%s"><label class="text-sm text-slate-300">From branch<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="head">`, owner, repo, csrf)
-	if branchErr == nil {
-		for _, b := range branches {
-			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
-		}
-	}
-	fmt.Fprint(w, `</select></label><label class="text-sm text-slate-300">To branch<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="base">`)
-	if branchErr == nil {
-		for _, b := range branches {
-			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
-		}
-	}
-	fmt.Fprint(w, `</select></label><label class="text-sm text-slate-300 md:col-span-2">Title<input required class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="title"></label><label class="text-sm text-slate-300 md:col-span-2">Description<textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="body"></textarea></label><label class="text-sm text-slate-300">Request review from<select class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="reviewer"><option value="">No reviewer</option>`)
-	if collaboratorErr == nil {
-		for _, user := range collaborators {
-			fmt.Fprintf(w, `<option value="%s">@%s</option>`, template.HTMLEscapeString(user.Login), template.HTMLEscapeString(user.Login))
-		}
-	}
-	fmt.Fprint(w, `</select></label><div class="flex items-end"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Create pull request</button></div></form></div>`)
+	fmt.Fprintf(w, `<div class="mb-6"><a class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" href="/repos/%s/%s/pulls/new">+ Create pull request</a></div>`, owner, repo)
 	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, pr := range prs {
 		fmt.Fprintf(w, `<a class="block rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-indigo-500" href="/repos/%s/%s/pulls/%d"><div class="flex items-center gap-3"><span class="text-sm text-slate-500">#%d</span><h2 class="font-medium text-white">%s</h2><span class="ml-auto rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-300">open</span></div></a>`, owner, repo, pr.Number, pr.Number, template.HTMLEscapeString(pr.Title))
 	}
 	fmt.Fprint(w, `</div>`)
 	pageEnd(w)
+}
+
+func (h *Handler) newPullRequest(w http.ResponseWriter, r *http.Request, owner, repo, csrf string) {
+	branches, branchErr := h.client.ListBranches(r.Context(), owner, repo)
+	collaborators, collaboratorErr := h.client.ListCollaborators(r.Context(), owner, repo)
+	pageStart(w, "Create pull request", repo, "Compare branches before opening a pull request.", owner, repo, "Pull requests", "Create")
+	fmt.Fprint(w, `<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>`)
+	fmt.Fprintf(w, `<form class="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 md:grid-cols-2" method="post" action="/repos/%s/%s/pulls"><input type="hidden" name="csrf" value="%s">`, owner, repo, csrf)
+	fmt.Fprint(w, `<label class="text-sm text-slate-300">From branch<select id="from-branch" class="mt-2" name="head">`)
+	if branchErr == nil {
+		for _, b := range branches {
+			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
+		}
+	}
+	fmt.Fprint(w, `</select></label>`)
+	fmt.Fprint(w, `<label class="text-sm text-slate-300">To branch<select id="to-branch" class="mt-2" name="base">`)
+	if branchErr == nil {
+		for _, b := range branches {
+			fmt.Fprintf(w, `<option value="%s">%s</option>`, template.HTMLEscapeString(b.Name), template.HTMLEscapeString(b.Name))
+		}
+	}
+	fmt.Fprint(w, `</select></label>`)
+	fmt.Fprint(w, `<div class="md:col-span-2"><button class="rounded-lg border border-indigo-500 px-4 py-2 text-sm text-indigo-300" type="button" onclick="checkDiff()">Check diff</button><div id="diff-preview" class="mt-4"></div></div><label class="text-sm text-slate-300 md:col-span-2">Title<input required class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="title"></label><label class="text-sm text-slate-300 md:col-span-2">Description<textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" name="body"></textarea></label><label class="text-sm text-slate-300">Request reviewer<select id="reviewer" class="mt-2" name="reviewer"><option value="">No reviewer</option>`)
+	if collaboratorErr == nil {
+		for _, u := range collaborators {
+			fmt.Fprintf(w, `<option value="%s">@%s</option>`, template.HTMLEscapeString(u.Login), template.HTMLEscapeString(u.Login))
+		}
+	}
+	fmt.Fprintf(w, `</select></label><div class="flex items-end"><button class="rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white" type="submit">Create pull request</button></div></form><script>new TomSelect('#from-branch',{placeholder:'Search source branch...'});new TomSelect('#to-branch',{placeholder:'Search target branch...'});new TomSelect('#reviewer',{placeholder:'Search reviewer...'});async function checkDiff(){const h=document.querySelector('[name=head]').value,b=document.querySelector('[name=base]').value;const e=document.querySelector('#diff-preview');if(!h||!b||h===b){e.innerHTML='<p class="text-amber-300">Choose two different branches.</p>';return}e.innerHTML=await fetch('/repos/%s/%s/compare?base='+encodeURIComponent(b)+'&head='+encodeURIComponent(h)).then(r=>r.text());}</script>`, owner, repo)
+	pageEnd(w)
+}
+
+func (h *Handler) compare(w http.ResponseWriter, r *http.Request, owner, repo string) {
+	base, head := r.URL.Query().Get("base"), r.URL.Query().Get("head")
+	if base == "" || head == "" || base == head {
+		http.Error(w, "choose two different branches", 400)
+		return
+	}
+	_, additions, deletions, files, err := h.client.CompareBranches(r.Context(), owner, repo, base, head)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	fmt.Fprintf(w, `<div class="rounded-xl border border-slate-700 bg-slate-950 p-4"><p class="text-sm text-slate-300">%d additions · %d deletions · %d files</p>`, additions, deletions, len(files))
+	for _, f := range files {
+		fmt.Fprintf(w, `<details class="mt-3 rounded-lg border border-slate-800 p-3"><summary class="cursor-pointer text-sm text-white">%s <span class="text-xs text-slate-500">%s</span></summary><pre class="mt-3 overflow-x-auto text-xs text-slate-300">%s</pre></details>`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status), template.HTMLEscapeString(f.Patch))
+	}
+	fmt.Fprint(w, `</div>`)
 }
 
 func (h *Handler) repo(w http.ResponseWriter, r *http.Request, owner, repo string) {
