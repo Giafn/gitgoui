@@ -12,6 +12,8 @@ import (
 
 const csrfCookie = "gitui_csrf"
 
+var csrfSecret = newToken()
+
 func newToken() string {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
@@ -27,12 +29,12 @@ func sign(secret, token string) string {
 func ensureCSRF(w http.ResponseWriter, r *http.Request) string {
 	if c, err := r.Cookie(csrfCookie); err == nil && c.Value != "" {
 		parts := strings.SplitN(c.Value, ".", 2)
-		if len(parts) == 2 && hmac.Equal([]byte(sign(parts[0], parts[0])), []byte(parts[1])) {
+		if len(parts) == 2 && hmac.Equal([]byte(sign(csrfSecret, parts[0])), []byte(parts[1])) {
 			return parts[0]
 		}
 	}
 	token := newToken()
-	http.SetCookie(w, &http.Cookie{Name: csrfCookie, Value: token + "." + sign(token, token), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(24 * time.Hour)})
+	http.SetCookie(w, &http.Cookie{Name: csrfCookie, Value: token + "." + sign(csrfSecret, token), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(24 * time.Hour)})
 	return token
 }
 
@@ -45,7 +47,7 @@ func validateCSRF(r *http.Request, token string) bool {
 	if len(parts) != 2 {
 		return false
 	}
-	if !hmac.Equal([]byte(parts[1]), []byte(sign(parts[0], parts[0]))) {
+	if !hmac.Equal([]byte(parts[1]), []byte(sign(csrfSecret, parts[0]))) {
 		return false
 	}
 	return hmac.Equal([]byte(token), []byte(parts[0]))
