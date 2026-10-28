@@ -12,7 +12,7 @@ import (
 func TestHandlersBasic(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/user/repos" {
-			w.Write([]byte(`[{"id":1,"name":"repo","full_name":"org/repo","owner":"org"}]`))
+			w.Write([]byte(`[{"id":1,"name":"repo","full_name":"org/repo","owner":{"login":"org"}}]`))
 			return
 		}
 		if r.URL.Path == "/repos/org/repo/pulls" {
