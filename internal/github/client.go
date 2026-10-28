@@ -47,7 +47,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 		return err
 	}
 	defer res.Body.Close()
-	data, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	data, _ := io.ReadAll(io.LimitReader(res.Body, 10<<20))
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		var e struct {
 			Message string `json:"message"`

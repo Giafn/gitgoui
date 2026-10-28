@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -50,6 +51,22 @@ func TestEmptyJSONResponseIsAccepted(t *testing.T) {
 	}
 	if err := NewClient(nil, s.URL, "secret").request(context.Background(), http.MethodGet, "/actions/runs", nil, &out); err != nil {
 		t.Fatalf("empty response should not be a json error: %v", err)
+	}
+}
+
+func TestLargeJSONResponseIsNotTruncated(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := bytes.Repeat([]byte("x"), 2<<20)
+		_, _ = w.Write([]byte(`{"workflow_runs":[{"name":"`))
+		_, _ = w.Write(body)
+		_, _ = w.Write([]byte(`"}]}`))
+	}))
+	defer s.Close()
+	var out struct {
+		WorkflowRuns []WorkflowRun `json:"workflow_runs"`
+	}
+	if err := NewClient(nil, s.URL, "secret").request(context.Background(), http.MethodGet, "/actions/runs", nil, &out); err != nil {
+		t.Fatalf("large response should decode: %v", err)
 	}
 }
 func TestInvalidMutationRejected(t *testing.T) {
