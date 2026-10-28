@@ -101,9 +101,18 @@ func (c *Client) GetPullRequest(ctx context.Context, owner, repo string, n int) 
 	return v, err
 }
 func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]Branch, error) {
-	var v []Branch
-	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/branches?per_page=100", owner, repo), &v)
-	return v, err
+	var all []Branch
+	for page := 1; ; page++ {
+		var v []Branch
+		err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/branches?per_page=100&page=%d", owner, repo, page), &v)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, v...)
+		if len(v) < 100 {
+			return all, nil
+		}
+	}
 }
 func (c *Client) CompareBranches(ctx context.Context, owner, repo, base, head string) (int, int, int, []DiffFile, error) {
 	var v struct {

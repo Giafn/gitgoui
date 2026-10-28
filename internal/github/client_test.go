@@ -80,6 +80,23 @@ func TestCompareBranchesDecodesFiles(t *testing.T) {
 		t.Fatalf("files=%#v additions=%d err=%v", files, additions, err)
 	}
 }
+
+func TestListBranchesFollowsPagination(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "1" {
+			w.Header().Set("Link", "<http://"+r.Host+"/repos/org/repo/branches?page=2>; rel=\"next\"")
+			rows := strings.Repeat(`{"name":"main"},`, 99) + `{"name":"main-100"}`
+			_, _ = w.Write([]byte("[" + rows + "]"))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"name":"feature/long-lived"}]`))
+	}))
+	defer s.Close()
+	branches, err := NewClient(nil, s.URL, "secret").ListBranches(context.Background(), "org", "repo")
+	if err != nil || len(branches) != 101 || branches[100].Name != "feature/long-lived" {
+		t.Fatalf("branches=%#v err=%v", branches, err)
+	}
+}
 func TestInvalidMutationRejected(t *testing.T) {
 	if err := NewClient(nil, "http://example", "x").CreateReview(context.Background(), "a", "b", 1, "BAD"); err == nil {
 		t.Fatal("expected validation")
