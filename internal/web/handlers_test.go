@@ -30,6 +30,9 @@ func TestHandlersBasic(t *testing.T) {
 	if rw.Code != 200 || !strings.Contains(rw.Body.String(), "org/repo") {
 		t.Fatalf("repos page: %d %s", rw.Code, rw.Body.String())
 	}
+	if !strings.Contains(rw.Body.String(), "tailwindcss") || !strings.Contains(rw.Body.String(), "bg-slate-950") {
+		t.Fatal("repository page is missing modern Tailwind layout")
+	}
 	rw2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodGet, "/repos/org/repo/pulls", nil)
 	h.ServeHTTP(rw2, req2)

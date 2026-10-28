@@ -106,11 +106,16 @@ func (h *Handler) repos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, "<!doctype html><html><body><h1>Repositories</h1><ul>")
+	pageStart(w, "Repositories", "Repositories", "Browse every repository available to your GitHub token.")
+	fmt.Fprint(w, `<section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">`)
 	for _, repo := range repos {
-		fmt.Fprintf(w, "<li><a href=\"/repos/%s/%s/pulls\">%s</a></li>", repo.Owner, repo.Name, template.HTMLEscapeString(repo.FullName))
+		visibility := "public"
+		if repo.Private {
+			visibility = "private"
+		}
+		fmt.Fprintf(w, `<a class="group rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl transition hover:-translate-y-0.5 hover:border-indigo-500" href="/repos/%s/%s/pulls"><div class="mb-4 flex items-center justify-between"><span class="text-xs font-medium uppercase tracking-wider text-indigo-300">%s</span><span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">%s</span></div><h2 class="font-semibold text-white group-hover:text-indigo-300">%s</h2><p class="mt-2 text-sm text-slate-400">%s · Open pull requests and review activity</p></a>`, repo.Owner.Login, repo.Name, template.HTMLEscapeString(repo.Owner.Login), visibility, template.HTMLEscapeString(repo.Name), template.HTMLEscapeString(repo.FullName))
 	}
-	fmt.Fprint(w, "</ul></body></html>")
+	pageEnd(w)
 }
 
 func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo string) {
@@ -120,11 +125,13 @@ func (h *Handler) pulls(w http.ResponseWriter, r *http.Request, owner, repo stri
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<!doctype html><html><body><h1>Pull Requests for %s/%s</h1><ul>", owner, repo)
+	pageStart(w, "Pull requests", repo, fmt.Sprintf("Review activity in %s/%s.", owner, repo))
+	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, pr := range prs {
-		fmt.Fprintf(w, "<li><a href=\"/repos/%s/%s/pulls/%d\">%s</a></li>", owner, repo, pr.Number, template.HTMLEscapeString(pr.Title))
+		fmt.Fprintf(w, `<a class="block rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-indigo-500" href="/repos/%s/%s/pulls/%d"><div class="flex items-center gap-3"><span class="text-sm text-slate-500">#%d</span><h2 class="font-medium text-white">%s</h2><span class="ml-auto rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-300">open</span></div></a>`, owner, repo, pr.Number, pr.Number, template.HTMLEscapeString(pr.Title))
 	}
-	fmt.Fprint(w, "</ul></body></html>")
+	fmt.Fprint(w, `</div>`)
+	pageEnd(w)
 }
 
 func (h *Handler) pullDetail(w http.ResponseWriter, r *http.Request, owner, repo string, n int) {
@@ -135,7 +142,9 @@ func (h *Handler) pullDetail(w http.ResponseWriter, r *http.Request, owner, repo
 	}
 	csrfToken := ensureCSRF(w, r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<!doctype html><html><body><h1>#%d %s</h1><form method=\"post\" action=\"/repos/%s/%s/pulls/%d/review\"><input type=\"hidden\" name=\"csrf\" value=\"%s\"><button name=\"event\" value=\"APPROVE\">Approve</button></form></body></html>", pr.Number, template.HTMLEscapeString(pr.Title), owner, repo, n, csrfToken)
+	pageStart(w, fmt.Sprintf("Pull request #%d", n), pr.Title, fmt.Sprintf("%s/%s", owner, repo))
+	fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-6 flex flex-wrap gap-3"><span class="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">%s</span><a class="text-sm text-indigo-300 hover:text-indigo-200" href="%s" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div><div class="flex flex-wrap gap-3"><form method="post" action="/repos/%s/%s/pulls/%d/review"><input type="hidden" name="csrf" value="%s"><button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400" name="event" value="APPROVE">Approve</button><button class="rounded-lg bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-500/25" name="event" value="REQUEST_CHANGES">Request changes</button></form><form method="post" action="/repos/%s/%s/pulls/%d/merge"><input type="hidden" name="csrf" value="%s"><input type="hidden" name="method" value="merge"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Merge pull request</button></form></div></article>`, template.HTMLEscapeString(pr.State), template.HTMLEscapeString(pr.HTMLURL), owner, repo, n, csrfToken, owner, repo, n, csrfToken)
+	pageEnd(w)
 }
 
 func (h *Handler) reviewOrMerge(w http.ResponseWriter, r *http.Request, owner, repo string, n int, token string) {
@@ -161,9 +170,19 @@ func (h *Handler) reviewOrMerge(w http.ResponseWriter, r *http.Request, owner, r
 func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo string) {
 	runs, _ := h.client.ListWorkflowRuns(r.Context(), owner, repo)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<!doctype html><html><body><h1>Actions for %s/%s</h1><ul>", owner, repo)
+	pageStart(w, "GitHub Actions", repo, fmt.Sprintf("Workflow runs in %s/%s.", owner, repo))
+	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, run := range runs {
-		fmt.Fprintf(w, "<li>%s - %s</li>", template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.Status))
+		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), template.HTMLEscapeString(run.Status))
 	}
-	fmt.Fprint(w, "</ul></body></html>")
+	fmt.Fprint(w, `</div>`)
+	pageEnd(w)
+}
+
+func pageStart(w http.ResponseWriter, eyebrow, title, subtitle string) {
+	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s · gitui</title><script src="https://cdn.tailwindcss.com"></script></head><body class="min-h-screen bg-slate-950 text-slate-100"><header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur"><div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5"><a class="text-lg font-bold tracking-tight text-white" href="/">git<span class="text-indigo-400">ui</span></a><nav class="flex gap-4 text-sm text-slate-400"><a class="hover:text-white" href="/">Repositories</a></nav></div></header><main class="mx-auto max-w-6xl px-6 py-12"><p class="text-sm font-medium uppercase tracking-widest text-indigo-400">%s</p><h1 class="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">%s</h1><p class="mt-3 max-w-2xl text-slate-400">%s</p><div class="mt-8">`, template.HTMLEscapeString(title), template.HTMLEscapeString(eyebrow), template.HTMLEscapeString(title), template.HTMLEscapeString(subtitle))
+}
+
+func pageEnd(w http.ResponseWriter) {
+	fmt.Fprint(w, `</div></main><footer class="mx-auto max-w-6xl px-6 pb-10 text-xs text-slate-600">Powered by Go, templ and GitHub API</footer></body></html>`)
 }
