@@ -48,6 +48,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.pullDetail(w, r, segs[0], segs[1], n)
 	case len(segs) == 3 && segs[2] == "actions":
 		h.actions(w, r, segs[0], segs[1])
+	case len(segs) == 6 && segs[2] == "actions" && segs[3] == "workflows" && segs[5] == "dispatch":
+		if r.Method != http.MethodPost || !validateCSRF(r, r.FormValue("csrf")) {
+			http.Error(w, "invalid request", http.StatusForbidden)
+			return
+		}
+		if err := h.client.DispatchWorkflow(r.Context(), segs[0], segs[1], segs[4], r.FormValue("ref")); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		http.Redirect(w, r, "/repos/"+segs[0]+"/"+segs[1]+"/actions", http.StatusSeeOther)
+	case len(segs) == 6 && segs[2] == "actions" && segs[3] == "runs" && (segs[5] == "cancel" || segs[5] == "rerun"):
+		if r.Method != http.MethodPost || !validateCSRF(r, r.FormValue("csrf")) {
+			http.Error(w, "invalid request", http.StatusForbidden)
+			return
+		}
+		id, err := strconv.ParseInt(segs[4], 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "invalid run", 400)
+			return
+		}
+		if segs[5] == "cancel" {
+			err = h.client.CancelWorkflowRun(r.Context(), segs[0], segs[1], id)
+		} else {
+			err = h.client.RerunWorkflowRun(r.Context(), segs[0], segs[1], id)
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		http.Redirect(w, r, "/repos/"+segs[0]+"/"+segs[1]+"/actions", http.StatusSeeOther)
 	default:
 		http.NotFound(w, r)
 	}
