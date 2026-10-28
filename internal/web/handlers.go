@@ -235,6 +235,7 @@ func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo st
 	fmt.Fprint(w, `<div class="space-y-3">`)
 	for _, run := range runs {
 		badge := "bg-slate-800 text-slate-300"
+		label := run.Status
 		if run.Status == "in_progress" || run.Status == "queued" {
 			badge = "bg-amber-500/10 text-amber-300"
 		}
@@ -243,8 +244,9 @@ func (h *Handler) actions(w http.ResponseWriter, r *http.Request, owner, repo st
 		}
 		if run.Status == "completed" && run.Conclusion != "success" {
 			badge = "bg-rose-500/10 text-rose-300"
+			label = "completed-failed"
 		}
-		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full px-3 py-1 text-xs %s">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), badge, template.HTMLEscapeString(run.Status))
+		fmt.Fprintf(w, `<div class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"><div class="min-w-0 flex-1"><h2 class="font-medium text-white">%s</h2><p class="mt-1 text-sm text-slate-400">%s</p></div><span class="rounded-full px-3 py-1 text-xs %s">%s</span></div>`, template.HTMLEscapeString(run.Name), template.HTMLEscapeString(run.HTMLURL), badge, template.HTMLEscapeString(label))
 	}
 	fmt.Fprint(w, `</div>`)
 	pageEnd(w)

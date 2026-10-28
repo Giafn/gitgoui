@@ -69,13 +69,13 @@ func TestActionsShowsGitHubError(t *testing.T) {
 
 func TestActionsUsesDistinctStatusBadgeColors(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"workflow_runs":[{"id":1,"name":"Build","status":"in_progress"},{"id":2,"name":"Deploy","status":"completed","conclusion":"success"}]}`))
+		w.Write([]byte(`{"workflow_runs":[{"id":1,"name":"Build","status":"in_progress"},{"id":2,"name":"Deploy","status":"completed","conclusion":"success"},{"id":3,"name":"Broken","status":"completed","conclusion":"failure"}]}`))
 	}))
 	defer s.Close()
 	rw := httptest.NewRecorder()
 	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/actions", nil))
 	body := rw.Body.String()
-	if !strings.Contains(body, "bg-amber-500/10") || !strings.Contains(body, "bg-emerald-500/10") {
+	if !strings.Contains(body, "bg-amber-500/10") || !strings.Contains(body, "bg-emerald-500/10") || !strings.Contains(body, "completed-failed") {
 		t.Fatalf("status colors missing: %s", body)
 	}
 }
