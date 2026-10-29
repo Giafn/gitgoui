@@ -256,10 +256,39 @@ func (h *Handler) pullDetail(w http.ResponseWriter, r *http.Request, owner, repo
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	files, err := h.client.ListPullRequestFiles(r.Context(), owner, repo, n)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	csrfToken := ensureCSRF(w, r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	pageStart(w, fmt.Sprintf("Pull request #%d", n), pr.Title, fmt.Sprintf("%s/%s", owner, repo), owner, repo, "Pull requests", fmt.Sprintf("Pull request #%d", n))
-	fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-6 flex flex-wrap gap-3"><span class="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">%s</span><a class="text-sm text-indigo-300 hover:text-indigo-200" href="%s" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div><div class="flex flex-wrap gap-3"><form method="post" action="/repos/%s/%s/pulls/%d/review"><input type="hidden" name="csrf" value="%s"><button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400" name="event" value="APPROVE">Approve</button><button class="rounded-lg bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-500/25" name="event" value="REQUEST_CHANGES">Request changes</button></form><form method="post" action="/repos/%s/%s/pulls/%d/merge"><input type="hidden" name="csrf" value="%s"><input type="hidden" name="method" value="merge"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Merge pull request</button></form></div></article>`, template.HTMLEscapeString(pr.State), template.HTMLEscapeString(pr.HTMLURL), owner, repo, n, csrfToken, owner, repo, n, csrfToken)
+	mergeability := "Mergeability is being checked"
+	mergeClass := "bg-amber-500/10 text-amber-300"
+	if pr.Mergeable != nil && *pr.Mergeable {
+		mergeability, mergeClass = "Mergeable", "bg-emerald-500/10 text-emerald-300"
+	}
+	if pr.Mergeable != nil && !*pr.Mergeable {
+		mergeability, mergeClass = "Not mergeable", "bg-rose-500/10 text-rose-300"
+	}
+	fmt.Fprintf(w, `<article class="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div class="mb-6 flex flex-wrap items-center gap-3"><span class="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">%s</span><span class="rounded-full px-3 py-1 text-sm %s">%s</span><a class="text-sm text-indigo-300 hover:text-indigo-200" href="%s" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div><p class="text-sm text-slate-400">Requested by <span class="font-medium text-white">@%s</span></p><p class="mt-3 text-sm text-slate-300"><span class="rounded bg-slate-800 px-2 py-1 font-mono">%s</span><span class="mx-2 text-slate-500">→</span><span class="rounded bg-slate-800 px-2 py-1 font-mono">%s</span></p><div class="mt-6 flex flex-wrap gap-3"><form method="post" action="/repos/%s/%s/pulls/%d/review"><input type="hidden" name="csrf" value="%s"><button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400" name="event" value="APPROVE">Approve</button><button class="rounded-lg bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-500/25" name="event" value="REQUEST_CHANGES">Request changes</button></form><form method="post" action="/repos/%s/%s/pulls/%d/merge"><input type="hidden" name="csrf" value="%s"><input type="hidden" name="method" value="merge"><button class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400" type="submit">Merge pull request</button></form></div></article>`, template.HTMLEscapeString(pr.State), mergeClass, mergeability, template.HTMLEscapeString(pr.HTMLURL), template.HTMLEscapeString(pr.User.Login), template.HTMLEscapeString(pr.Head.Ref), template.HTMLEscapeString(pr.Base.Ref), owner, repo, n, csrfToken, owner, repo, n, csrfToken)
+	fmt.Fprintf(w, `<section class="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-5"><h2 class="text-lg font-semibold text-white">Files changed <span class="ml-2 text-sm font-normal text-slate-400">%d files</span></h2>`, len(files))
+	for _, f := range files {
+		fmt.Fprintf(w, `<details class="mt-4 overflow-hidden rounded-xl border border-slate-800"><summary class="cursor-pointer break-all bg-slate-950 px-4 py-3 text-sm text-white">%s <span class="ml-2 text-xs text-slate-500">%s · <span class="text-emerald-300">+%d</span> <span class="text-rose-300">-%d</span></span></summary><pre class="max-w-full overflow-x-auto whitespace-pre-wrap break-words text-xs">`, template.HTMLEscapeString(f.Filename), template.HTMLEscapeString(f.Status), f.Additions, f.Deletions)
+		for _, line := range strings.Split(f.Patch, "\n") {
+			color := "text-slate-300"
+			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+				color = "bg-emerald-500/10 text-emerald-300"
+			}
+			if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+				color = "bg-rose-500/10 text-rose-300"
+			}
+			fmt.Fprintf(w, `<span class="block px-3 %s">%s</span>`, color, template.HTMLEscapeString(line))
+		}
+		fmt.Fprint(w, `</pre></details>`)
+	}
+	fmt.Fprint(w, `</section>`)
 	pageEnd(w)
 }
 

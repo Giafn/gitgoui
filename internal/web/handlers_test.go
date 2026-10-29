@@ -131,6 +131,25 @@ func TestGlobalBreadcrumbLinksFeaturePages(t *testing.T) {
 	}
 }
 
+func TestPullRequestDetailShowsAuthorBranchesMergeabilityAndDiff(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/files") {
+			w.Write([]byte(`[{"filename":"app.go","status":"modified","patch":"-old\n+new"}]`))
+			return
+		}
+		w.Write([]byte(`{"number":42,"title":"Update UI","state":"open","html_url":"https://github.com/org/repo/pull/42","user":{"login":"alice"},"head":{"ref":"feature/ui"},"base":{"ref":"main"},"mergeable":true}`))
+	}))
+	defer s.Close()
+	rw := httptest.NewRecorder()
+	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/pulls/42", nil))
+	body := rw.Body.String()
+	for _, value := range []string{"alice", "feature/ui", "main", "Mergeable", "app.go", "bg-emerald-500/10", "bg-rose-500/10"} {
+		if !strings.Contains(body, value) {
+			t.Fatalf("missing %q: %s", value, body)
+		}
+	}
+}
+
 func TestDiffSummaryUsesFileCountsAndColoredLines(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"additions":0,"deletions":0,"files":[{"filename":"x.go","additions":4,"deletions":2,"patch":"-old\n+new"}]}`))

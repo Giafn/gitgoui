@@ -81,6 +81,28 @@ func TestCompareBranchesDecodesFiles(t *testing.T) {
 	}
 }
 
+func TestPullRequestHasAuthorBranchesAndMergeable(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"number":42,"user":{"login":"alice"},"head":{"ref":"feature/ui"},"base":{"ref":"main"},"mergeable":true}`))
+	}))
+	defer s.Close()
+	pr, err := NewClient(nil, s.URL, "secret").GetPullRequest(context.Background(), "org", "repo", 42)
+	if err != nil || pr.User.Login != "alice" || pr.Head.Ref != "feature/ui" || pr.Base.Ref != "main" || pr.Mergeable == nil || !*pr.Mergeable {
+		t.Fatalf("pr=%#v err=%v", pr, err)
+	}
+}
+
+func TestListPullRequestFiles(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"filename":"app.go","status":"modified","additions":2,"deletions":1,"patch":"-old\n+new"}]`))
+	}))
+	defer s.Close()
+	files, err := NewClient(nil, s.URL, "secret").ListPullRequestFiles(context.Background(), "org", "repo", 42)
+	if err != nil || len(files) != 1 || files[0].Additions != 2 || files[0].Deletions != 1 {
+		t.Fatalf("files=%#v err=%v", files, err)
+	}
+}
+
 func TestListBranchesFollowsPagination(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") == "1" {

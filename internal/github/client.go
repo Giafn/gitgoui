@@ -100,6 +100,11 @@ func (c *Client) GetPullRequest(ctx context.Context, owner, repo string, n int) 
 	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/pulls/%d", url.PathEscape(owner), url.PathEscape(repo), n), &v)
 	return v, err
 }
+func (c *Client) ListPullRequestFiles(ctx context.Context, owner, repo string, n int) ([]DiffFile, error) {
+	var v []DiffFile
+	err := c.paged(ctx, fmt.Sprintf("/repos/%s/%s/pulls/%d/files?per_page=100", url.PathEscape(owner), url.PathEscape(repo), n), &v)
+	return v, err
+}
 func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]Branch, error) {
 	var all []Branch
 	for page := 1; ; page++ {
