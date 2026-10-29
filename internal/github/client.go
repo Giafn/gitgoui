@@ -51,10 +51,19 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		var e struct {
 			Message string `json:"message"`
+			Errors  []struct {
+				Field   string `json:"field"`
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"errors"`
 		}
 		_ = json.Unmarshal(data, &e)
 		if e.Message == "" {
 			e.Message = http.StatusText(res.StatusCode)
+		}
+		for _, detail := range e.Errors {
+			parts := []string{detail.Field, detail.Code, detail.Message}
+			e.Message += ": " + strings.Join(nonempty(parts), " ")
 		}
 		return fmt.Errorf("github: %s: %s", res.Status, e.Message)
 	}
@@ -62,6 +71,16 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 		return json.Unmarshal(data, out)
 	}
 	return nil
+}
+
+func nonempty(values []string) []string {
+	out := values[:0]
+	for _, value := range values {
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 func (c *Client) paged(ctx context.Context, path string, out any) error {
 	return c.request(ctx, http.MethodGet, path, nil, out)
@@ -143,11 +162,18 @@ func (c *Client) CreatePullRequest(ctx context.Context, owner, repo string, in P
 func (c *Client) RequestReviewers(ctx context.Context, owner, repo string, n int, reviewers []string) error {
 	return c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", owner, repo, n), map[string][]string{"reviewers": reviewers}, nil)
 }
-func (c *Client) CreateReview(ctx context.Context, owner, repo string, n int, event string) error {
+func (c *Client) CreateReview(ctx context.Context, owner, repo string, n int, event string, body ...string) error {
 	if event != "APPROVE" && event != "REQUEST_CHANGES" {
 		return fmt.Errorf("invalid review event")
 	}
-	return c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, n), map[string]string{"event": event}, nil)
+	if event == "REQUEST_CHANGES" && (len(body) == 0 || strings.TrimSpace(body[0]) == "") {
+		return fmt.Errorf("a review comment is required when requesting changes")
+	}
+	payload := map[string]string{"event": event}
+	if len(body) > 0 {
+		payload["body"] = body[0]
+	}
+	return c.request(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, n), payload, nil)
 }
 func (c *Client) MergePullRequest(ctx context.Context, owner, repo string, n int, method string) error {
 	if method != "merge" && method != "squash" && method != "rebase" {

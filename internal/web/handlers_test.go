@@ -150,6 +150,24 @@ func TestPullRequestDetailShowsAuthorBranchesMergeabilityAndDiff(t *testing.T) {
 	}
 }
 
+func TestRequestChangesRequiresComment(t *testing.T) {
+	called := false
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
+	defer s.Close()
+	h := NewHandler(github.NewClient(nil, s.URL, "secret"))
+	w := httptest.NewRecorder()
+	get := httptest.NewRequest(http.MethodGet, "/", nil)
+	token := ensureCSRF(w, get)
+	post := httptest.NewRequest(http.MethodPost, "/repos/org/repo/pulls/42/review", strings.NewReader("csrf="+token+"&event=REQUEST_CHANGES"))
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	post.AddCookie(w.Result().Cookies()[0])
+	rw := httptest.NewRecorder()
+	h.ServeHTTP(rw, post)
+	if rw.Code != http.StatusBadRequest || called {
+		t.Fatalf("code=%d apiCalled=%v body=%s", rw.Code, called, rw.Body.String())
+	}
+}
+
 func TestDiffSummaryUsesFileCountsAndColoredLines(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"additions":0,"deletions":0,"files":[{"filename":"x.go","additions":4,"deletions":2,"patch":"-old\n+new"}]}`))

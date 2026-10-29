@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -122,6 +123,36 @@ func TestListBranchesFollowsPagination(t *testing.T) {
 func TestInvalidMutationRejected(t *testing.T) {
 	if err := NewClient(nil, "http://example", "x").CreateReview(context.Background(), "a", "b", 1, "BAD"); err == nil {
 		t.Fatal("expected validation")
+	}
+}
+
+func TestRequestChangesIncludesReviewComment(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["event"] != "REQUEST_CHANGES" || payload["body"] != "Please fix this" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer s.Close()
+	if err := NewClient(nil, s.URL, "secret").CreateReview(context.Background(), "org", "repo", 1, "REQUEST_CHANGES", "Please fix this"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGitHubValidationErrorIncludesFieldDetails(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"message":"Validation Failed","errors":[{"field":"body","code":"missing_field"}]}`))
+	}))
+	defer s.Close()
+	err := NewClient(nil, s.URL, "secret").CreateReview(context.Background(), "org", "repo", 1, "REQUEST_CHANGES", "comment")
+	if err == nil || !strings.Contains(err.Error(), "body") || !strings.Contains(err.Error(), "missing_field") {
+		t.Fatalf("error should explain GitHub validation: %v", err)
 	}
 }
 
