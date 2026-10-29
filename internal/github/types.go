@@ -13,15 +13,16 @@ type User struct {
 }
 
 type PullRequest struct {
-	Number    int               `json:"number"`
-	Title     string            `json:"title"`
-	State     string            `json:"state"`
-	HTMLURL   string            `json:"html_url"`
-	Body      string            `json:"body"`
-	Mergeable *bool             `json:"mergeable"`
-	User      User              `json:"user"`
-	Head      PullRequestBranch `json:"head"`
-	Base      PullRequestBranch `json:"base"`
+	Number             int               `json:"number"`
+	Title              string            `json:"title"`
+	State              string            `json:"state"`
+	HTMLURL            string            `json:"html_url"`
+	Body               string            `json:"body"`
+	Mergeable          *bool             `json:"mergeable"`
+	User               User              `json:"user"`
+	Head               PullRequestBranch `json:"head"`
+	Base               PullRequestBranch `json:"base"`
+	RequestedReviewers []User            `json:"requested_reviewers"`
 }
 
 type PullRequestBranch struct {

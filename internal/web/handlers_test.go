@@ -137,13 +137,13 @@ func TestPullRequestDetailShowsAuthorBranchesMergeabilityAndDiff(t *testing.T) {
 			w.Write([]byte(`[{"filename":"app.go","status":"modified","patch":"-old\n+new"}]`))
 			return
 		}
-		w.Write([]byte(`{"number":42,"title":"Update UI","state":"open","html_url":"https://github.com/org/repo/pull/42","user":{"login":"alice"},"head":{"ref":"feature/ui"},"base":{"ref":"main"},"mergeable":true}`))
+		w.Write([]byte(`{"number":42,"title":"Update UI","state":"open","html_url":"https://github.com/org/repo/pull/42","user":{"login":"alice"},"head":{"ref":"feature/ui"},"base":{"ref":"main"},"mergeable":true,"requested_reviewers":[{"login":"bob"},{"login":"carol"}]}`))
 	}))
 	defer s.Close()
 	rw := httptest.NewRecorder()
 	NewHandler(github.NewClient(nil, s.URL, "secret")).ServeHTTP(rw, httptest.NewRequest(http.MethodGet, "/repos/org/repo/pulls/42", nil))
 	body := rw.Body.String()
-	for _, value := range []string{"alice", "feature/ui", "main", "Mergeable", "app.go", "bg-emerald-500/10", "bg-rose-500/10"} {
+	for _, value := range []string{"alice", "bob", "carol", "Review requested from", "feature/ui", "main", "Mergeable", "app.go", "bg-emerald-500/10", "bg-rose-500/10"} {
 		if !strings.Contains(body, value) {
 			t.Fatalf("missing %q: %s", value, body)
 		}
